@@ -13,6 +13,8 @@ class WaitingArrowSpinnerWidget(QWidget):
         super().__init__(*args, **kwargs)
         self._angle = 0.0
         self._hue_offset = 0.0
+        self._flip = 1
+        self._revolutions_per_second = 60
         self._rotation_increment = 2
         self._timer = QTimer(self)
         self._timer.timeout.connect(self.updateRotation)
@@ -23,30 +25,56 @@ class WaitingArrowSpinnerWidget(QWidget):
         self._sweep = (1 - self._gap_ratio) * (360 / self._arrow_count) # Span in degrees
         self._thickness_ratio = 0.1  # thickness of the arrow body as a ratio of widget dimensions
         self._arrow_width_ratio = 0.075  # width of the arrow barbs as a ratio of the screen dimensions
-        self._arrow_lengh_ratio = 0.3 # ratio of the arrow as a proportion of the body
+        self._arrow_length_ratio = 0.3 # ratio of the arrow as a proportion of the body
         self._barb_indent_ratio = 0.03  # ratio of the whole arrow
         self.buildArrowArcPaths()
         self.buildComponents()
 
+
+    def setClockwise(self, clockwise):
+        self._flip = 1 if clockwise else -1
+
+    def setFrameRate(self, rate):
+        self._timer.setInterval(1000 // rate)
+        self._rotation_increment = self._revolutions_per_second * self._timer.interval() * 360 / 1000
+
+    def setRevolutionsPerSecond(self, rps):
+        # time step
+        #rps = (inc/360) * 1000 / self._timer.interval
+        self._revolutions_per_second = rps
+        self._rotation_increment = rps * self._timer.interval() * 360 / 1000
+
     def setGapRatio(self, gap_ratio):
-        self._gap_ratio = gap
+        self._gap_ratio = gap_ratio
         self._sweep = (1 - self._gap_ratio) * (360 / self._arrow_count)
+        self.buildArrowArcPaths()
+        self.buildComponents()
 
     def setArrowCount(self, arrow_count):
         self._arrow_count = arrow_count
         self._sweep = (1 - self._gap_ratio) * (360 / self._arrow_count)
+        self.buildArrowArcPaths()
+        self.buildComponents()
 
     def setThicknessRatio(self, thickness_ratio):
         self._thickness_ratio = thickness_ratio
+        self.buildArrowArcPaths()
+        self.buildComponents()
 
     def setArrowWidthRatio(self, arrow_width_ratio):
         self._arrow_width_ratio = arrow_width_ratio
+        self.buildArrowArcPaths()
+        self.buildComponents()
 
-    def setArrowLenghRatio(self,  arrow_lengh_ratio):
-        self._arrow_lengh_ratio = arrow_lengh_ratio
+    def setArrowLengthRatio(self,  arrow_length_ratio):
+        self._arrow_length_ratio = arrow_length_ratio
+        self.buildArrowArcPaths()
+        self.buildComponents()
 
     def setBarbIndentRatio(self, barb_indent_ratio):
         self._barb_indent_ratio = barb_indent_ratio
+        self.buildArrowArcPaths()
+        self.buildComponents()
 
     def updateRotation(self):
         self._angle = (self._angle + self._rotation_increment) % 360
@@ -72,10 +100,10 @@ class WaitingArrowSpinnerWidget(QWidget):
         # cos(self._sweep * tip_ratio) = mid_ring_rect.right() / r     # arrow x..
         # r =  sin() mid_ring_rect.right() / cos(self._sweep * tip_ratio) 
         # 
-        mid_ring_rect.right() * math.tan(self._sweep * self._arrow_lengh_ratio)
+        mid_ring_rect.right() * math.tan(self._sweep * self._arrow_length_ratio)
 
         # arrow_tip = QPointF(mid_ring_rect.right(), thickness * 2.0)
-        arrow_tip = QPointF(mid_ring_rect.right(), mid_ring_rect.right() * math.tan(self._sweep * self._arrow_lengh_ratio))
+        arrow_tip = QPointF(mid_ring_rect.right(), mid_ring_rect.right() * math.tan(math.radians(self._sweep * self._arrow_length_ratio)))
 
         self._norm_arc_start_angle = math.degrees(math.atan2(-arrow_tip.y(), arrow_tip.x()))
 
@@ -193,7 +221,7 @@ class WaitingArrowSpinnerWidget(QWidget):
             painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
             painter.save()
-            painter.setTransform( QTransform().rotate(self._angle) * self._transform)
+            painter.setTransform( QTransform().scale(self._flip, 1).rotate(self._angle) * self._transform)
             self.drawArrowPaths(painter)
 
             painter.restore()
