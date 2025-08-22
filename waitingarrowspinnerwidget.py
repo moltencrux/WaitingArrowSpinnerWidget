@@ -6,8 +6,8 @@ from PyQt6.QtCore import Qt, QTimer, QRect, QRectF, QPointF, QMarginsF
 import math
 
 class WaitingArrowSpinnerWidget(QWidget):
-    _norm_width = 500.0
-    _norm_rect = QRectF(-_norm_width, -_norm_width, _norm_width * 2, _norm_width * 2)
+    _norm_width = 1000.0
+    _norm_rect = QRectF(-_norm_width / 2, -_norm_width / 2, _norm_width, _norm_width)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -18,13 +18,35 @@ class WaitingArrowSpinnerWidget(QWidget):
         self._timer.timeout.connect(self.updateRotation)
         self._timer.setInterval(16)
         self._isSpinning = False
+        self._gap_ratio = 0.2 # 
         self._arrow_count = 3
-        self._sweep = (360 / self._arrow_count) - 15 # Span in degrees
-        self._thickness_ratio = 5
-        self._arrow_length_ratio = 2.0
-        self._arrow_width_ratio =  2 / (1 + math.sqrt(5))
+        self._sweep = (1 - self._gap_ratio) * (360 / self._arrow_count) # Span in degrees
+        self._thickness_ratio = 0.1  # thickness of the arrow body as a ratio of widget dimensions
+        self._arrow_width_ratio = 0.075  # width of the arrow barbs as a ratio of the screen dimensions
+        self._arrow_lengh_ratio = 0.3 # ratio of the arrow as a proportion of the body
+        self._barb_indent_ratio = 0.03  # ratio of the whole arrow
         self.buildArrowArcPaths()
         self.buildComponents()
+
+    def setGapRatio(self, gap_ratio):
+        self._gap_ratio = gap
+        self._sweep = (1 - self._gap_ratio) * (360 / self._arrow_count)
+
+    def setArrowCount(self, arrow_count):
+        self._arrow_count = arrow_count
+        self._sweep = (1 - self._gap_ratio) * (360 / self._arrow_count)
+
+    def setThicknessRatio(self, thickness_ratio):
+        self._thickness_ratio = thickness_ratio
+
+    def setArrowWidthRatio(self, arrow_width_ratio):
+        self._arrow_width_ratio = arrow_width_ratio
+
+    def setArrowLenghRatio(self,  arrow_lengh_ratio):
+        self._arrow_lengh_ratio = arrow_lengh_ratio
+
+    def setBarbIndentRatio(self, barb_indent_ratio):
+        self._barb_indent_ratio = barb_indent_ratio
 
     def updateRotation(self):
         self._angle = (self._angle + self._rotation_increment) % 360
@@ -33,20 +55,28 @@ class WaitingArrowSpinnerWidget(QWidget):
         self.update()
 
     def buildArrowArcPaths(self):
-        """Create normalized QPainterPath for the arrow and its mirrored version."""
+        """Create normalized QPainterPath for the arrow and its duplicates."""
         width = self._norm_width
         rect = self._norm_rect
-        thickness = width / self._thickness_ratio
-        barb_margin = QMarginsF(*[thickness * self._arrow_width_ratio] * 4)
+        thickness = self._norm_width * self._thickness_ratio
+        barb_extension = self._arrow_width_ratio * self._norm_width
+        barb_margin = QMarginsF(*[barb_extension] * 4)
         thickness_margin = QMarginsF(*[thickness] * 4)
-        indent_arc = 3
+        indent_arc = self._sweep * self._barb_indent_ratio
 
         outer_ring_rect = rect - barb_margin
         mid_ring_rect = outer_ring_rect - (0.5 * thickness_margin)
         inner_ring_rect = outer_ring_rect - thickness_margin
         inner_arrow_rect = inner_ring_rect - barb_margin
 
-        arrow_tip = QPointF(mid_ring_rect.right(), thickness * 2.0)
+        # cos(self._sweep * tip_ratio) = mid_ring_rect.right() / r     # arrow x..
+        # r =  sin() mid_ring_rect.right() / cos(self._sweep * tip_ratio) 
+        # 
+        mid_ring_rect.right() * math.tan(self._sweep * self._arrow_lengh_ratio)
+
+        # arrow_tip = QPointF(mid_ring_rect.right(), thickness * 2.0)
+        arrow_tip = QPointF(mid_ring_rect.right(), mid_ring_rect.right() * math.tan(self._sweep * self._arrow_lengh_ratio))
+
         self._norm_arc_start_angle = math.degrees(math.atan2(-arrow_tip.y(), arrow_tip.x()))
 
         adj_sweep = self._sweep + self._norm_arc_start_angle
