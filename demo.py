@@ -27,8 +27,14 @@ SOFTWARE.
 
 import sys
 
-from PyQt6.QtCore import *
-from PyQt6.QtWidgets import *
+# from PyQt6.QtCore import *
+from PyQt6.QtCore import Qt
+
+# from PyQt6.QtWidgets import *
+from PyQt6.QtWidgets import (QApplication, QWidget, QCheckBox, QDoubleSpinBox,
+    QSpinBox, QPushButton, QGridLayout, QGroupBox, QHBoxLayout, QSizePolicy,
+    QLabel
+)
 
 from waitingarrowspinnerwidget import WaitingArrowSpinnerWidget
 
@@ -64,6 +70,7 @@ class Demo(QWidget):
 
         # SPINNER
         self.spinner = WaitingArrowSpinnerWidget(self)
+        self.spinner.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
 
         # Spinboxes
         self.sb_arrow_count = QSpinBox()
@@ -78,6 +85,7 @@ class Demo(QWidget):
         self.sb_rev_s = QDoubleSpinBox()
         self.sb_frame_rate = QSpinBox()
         self.sb_clockwise = QCheckBox()
+        self.sb_enabled = QCheckBox()
 
         # set spinbox default values
         self.sb_arrow_count.setValue(3)
@@ -102,13 +110,14 @@ class Demo(QWidget):
         self.sb_barb_indent_ratio.setRange(0.0, 1.0)
         self.sb_barb_indent_ratio.setSingleStep(0.01)
         self.sb_barb_indent_ratio.setDecimals(3)
-        self.sb_rev_s.setValue(1.0)
+        self.sb_rev_s.setValue(0.4)
         self.sb_rev_s.setRange(0.1, 10.0)
         self.sb_rev_s.setSingleStep(0.1)
         self.sb_rev_s.setDecimals(2)
         self.sb_frame_rate.setValue(60)
         self.sb_frame_rate.setRange(1, 240)
         self.sb_clockwise.setChecked(True)
+        self.sb_enabled.setChecked(True)
 
         # Buttons
         self.btn_start = QPushButton("Start")
@@ -125,6 +134,7 @@ class Demo(QWidget):
         self.sb_rev_s.valueChanged.connect(self.set_rev_s)
         self.sb_frame_rate.valueChanged.connect(self.set_frame_rate)
         self.sb_clockwise.stateChanged.connect(self.set_clockwise)
+        self.sb_enabled.stateChanged.connect(self.set_enabled)
 
         self.btn_start.clicked.connect(self.spinner_start)
         self.btn_stop.clicked.connect(self.spinner_stop)
@@ -151,6 +161,8 @@ class Demo(QWidget):
         groupbox2_layout.addWidget(self.sb_frame_rate, 8, 2)
         groupbox2_layout.addWidget(QLabel("Clockwise:"), 9, 1)
         groupbox2_layout.addWidget(self.sb_clockwise, 9, 2)
+        groupbox2_layout.addWidget(QLabel("Enabled:"), 10, 1)
+        groupbox2_layout.addWidget(self.sb_enabled, 10, 2)
 
 
         groupbox2.setLayout(groupbox2_layout)
@@ -195,6 +207,10 @@ class Demo(QWidget):
 
     def set_clockwise(self):
         self.spinner.setClockwise(self.sb_clockwise.isChecked())
+
+    def set_enabled(self):
+        # self.spinner.setEnabled(self.sb_enabled.isChecked())
+        self.spinner.setDisabled(not self.sb_enabled.isChecked())
 
     def spinner_start(self):
         self.spinner.start()

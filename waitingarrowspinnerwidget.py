@@ -20,7 +20,8 @@ class WaitingArrowSpinnerWidget(QWidget):
         self._timer.timeout.connect(self.updateRotation)
         self._timer.setInterval(16)
         self._isSpinning = False
-        self._gap_ratio = 0.2 # 
+        self._grayed_out = False  # Track grayed-out state
+        self._gap_ratio = 0.2
         self._arrow_count = 3
         self._sweep = (1 - self._gap_ratio) * (360 / self._arrow_count) # Span in degrees
         self._thickness_ratio = 0.1  # thickness of the arrow body as a ratio of widget dimensions
@@ -39,8 +40,6 @@ class WaitingArrowSpinnerWidget(QWidget):
         self._rotation_increment = self._revolutions_per_second * self._timer.interval() * 360 / 1000
 
     def setRevolutionsPerSecond(self, rps):
-        # time step
-        #rps = (inc/360) * 1000 / self._timer.interval
         self._revolutions_per_second = rps
         self._rotation_increment = rps * self._timer.interval() * 360 / 1000
 
@@ -66,7 +65,7 @@ class WaitingArrowSpinnerWidget(QWidget):
         self.buildArrowArcPaths()
         self.buildComponents()
 
-    def setArrowLengthRatio(self,  arrow_length_ratio):
+    def setArrowLengthRatio(self, arrow_length_ratio):
         self._arrow_length_ratio = arrow_length_ratio
         self.buildArrowArcPaths()
         self.buildComponents()
@@ -97,12 +96,8 @@ class WaitingArrowSpinnerWidget(QWidget):
         inner_ring_rect = outer_ring_rect - thickness_margin
         inner_arrow_rect = inner_ring_rect - barb_margin
 
-        # cos(self._sweep * tip_ratio) = mid_ring_rect.right() / r     # arrow x..
-        # r =  sin() mid_ring_rect.right() / cos(self._sweep * tip_ratio) 
-        # 
         mid_ring_rect.right() * math.tan(self._sweep * self._arrow_length_ratio)
 
-        # arrow_tip = QPointF(mid_ring_rect.right(), thickness * 2.0)
         arrow_tip = QPointF(mid_ring_rect.right(), mid_ring_rect.right() * math.tan(math.radians(self._sweep * self._arrow_length_ratio)))
 
         self._norm_arc_start_angle = math.degrees(math.atan2(-arrow_tip.y(), arrow_tip.x()))
@@ -144,27 +139,32 @@ class WaitingArrowSpinnerWidget(QWidget):
 
 
     def buildGradient(self):
-        arc_start_angle = self._arc_start_angle
-        """Create QConicalGradient for the arc."""
+        """Create QConicalGradient for the arc, grayed out if disabled."""
         gradient = QConicalGradient(QPointF(0, 0), self._norm_arc_start_angle)
-
-        cyan_hue = (180 + self._hue_offset) % 360
-        blue_hue = (240 + self._hue_offset) % 360
-        trans_hue = (120 + self._hue_offset) % 360
-
-        ch = QColor.fromHsvF(cyan_hue / 360, 1.0, 1.0, 1.0)  # Cyan, full alpha
-        bh = QColor.fromHsvF(blue_hue / 360, 1.0, 1.0, 1.0)  # Blue, full alpha
-        th = QColor.fromHsvF(trans_hue / 360, 1.0, 1.0, 0.0)  # Transparent
-        th.setAlpha(0)
-
-
-        for arrow in range(0, self._arrow_count):
-            gradient.setColorAt((arrow / self._arrow_count), ch)
-            gradient.setColorAt((arrow / self._arrow_count)  +  0.5 * (self._sweep / 360), bh)
-            gradient.setColorAt((arrow / self._arrow_count)  +  (self._sweep / 360), th)
-
-        gradient.setColorAt(1.0, ch)
-
+        if self._grayed_out:
+            # Grayscale gradient
+            gray1 = QColor.fromHsvF(0, 0, 0.7, 1.0)  # Light gray
+            gray2 = QColor.fromHsvF(0, 0, 0.3, 1.0)  # Dark gray
+            transparent = QColor.fromHsvF(0, 0, 0, 0.0)  # Transparent
+            for arrow in range(self._arrow_count):
+                gradient.setColorAt(arrow / self._arrow_count, gray1)
+                gradient.setColorAt((arrow / self._arrow_count) + 0.5 * (self._sweep / 360), gray2)
+                gradient.setColorAt((arrow / self._arrow_count) + (self._sweep / 360), transparent)
+            gradient.setColorAt(1.0, gray1)
+        else:
+            # Colorful gradient
+            cyan_hue = (180 + self._hue_offset) % 360
+            blue_hue = (240 + self._hue_offset) % 360
+            trans_hue = (120 + self._hue_offset) % 360
+            ch = QColor.fromHsvF(cyan_hue / 360, 1.0, 1.0, 1.0)
+            bh = QColor.fromHsvF(blue_hue / 360, 1.0, 1.0, 1.0)
+            th = QColor.fromHsvF(trans_hue / 360, 1.0, 1.0, 0.0)
+            th.setAlpha(0)
+            for arrow in range(self._arrow_count):
+                gradient.setColorAt(arrow / self._arrow_count, ch)
+                gradient.setColorAt((arrow / self._arrow_count) + 0.5 * (self._sweep / 360), bh)
+                gradient.setColorAt((arrow / self._arrow_count) + (self._sweep / 360), th)
+            gradient.setColorAt(1.0, ch)
         self._gradient = gradient
 
     def resizeEvent(self, event):
@@ -185,24 +185,11 @@ class WaitingArrowSpinnerWidget(QWidget):
 
         self.buildGradient()
 
-    def mousePressEvent(self, event):
-        """Toggle animation on mouse click."""
-        if event.button() == Qt.MouseButton.LeftButton:
-            if self._isSpinning:
-                self.stop()
-            else:
-                self.start()
-
-            event.accept()
-            return
-        event.ignore()
 
     def drawArrowPaths(self, painter):
         """Draw the precomputed arrow paths with scaling and gradient."""
         painter.save()
-        # Apply scaling and translation
-        # transform = self._scale_transform
-        # scaled_paths = [transform.map(path) for path in self._paths]
+
         scaled_paths = self._paths
 
         # Apply gradient
@@ -216,28 +203,37 @@ class WaitingArrowSpinnerWidget(QWidget):
         painter.restore()
 
     def paintEvent(self, event):
-        if self._isSpinning:
-            painter = QPainter(self)
-            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-            painter.save()
-            painter.setTransform( QTransform().scale(self._flip, 1).rotate(self._angle) * self._transform)
-            self.drawArrowPaths(painter)
-
-            painter.restore()
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.save()
+        painter.setTransform(QTransform().scale(self._flip, 1).rotate(self._angle) * self._transform)
+        self.drawArrowPaths(painter)
+        painter.restore()
 
     def start(self):
         self._isSpinning = True
         if not self._timer.isActive():
             self._timer.start()
-            self._currentCounter = 0
+        self._currentCounter = 0
 
     def stop(self):
         self._isSpinning = False
         if self._timer.isActive():
             self._timer.stop()
-            self._currentCounter = 0
+        self._currentCounter = 0
+
+    def setEnabled(self, enabled):
+        super().setEnabled(enabled)
+        self._grayed_out = not enabled
+        if enabled:
+            self.start()
+        else:
+            self.stop()
+        self.buildGradient()
         self.update()
+
+    def setDisabled(self, disabled):
+        self.setEnabled(not disabled)
 
 if __name__ == "__main__":
     from PyQt6.QtWidgets import QApplication
